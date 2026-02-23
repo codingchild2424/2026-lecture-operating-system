@@ -1,0 +1,37 @@
+# Materials
+materials/
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Lecture scripts (private)
+**/script.md
+
+# Quiz (private)
+quiz/
+
+# Slidev
+.slidev/
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Internal plans
+plans/
+
+# xv6 source (external repo)
+xv6-riscv/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
