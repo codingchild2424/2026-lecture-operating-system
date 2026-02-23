@@ -27,9 +27,6 @@ Thumbs.db
 # Internal plans
 plans/
 
-# xv6 source (external repo)
-xv6-riscv/
-
 # Editor
 .vscode/
 .idea/
