@@ -6,7 +6,8 @@ node_modules/
 package-lock.json
 
 # Lecture scripts (private)
-**/script.md
+**/script_en.md
+**/script_ko.md
 
 # Quiz (private)
 quiz/
