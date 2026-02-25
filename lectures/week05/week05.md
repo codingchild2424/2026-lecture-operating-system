@@ -16,7 +16,7 @@
 - [00:15–00:50] Theory: Advanced Synchronization Tools
   - Semaphore (Counting, Binary)
   - Monitor, Condition Variable
-  - Slides: `theory/05_thread_concurrency_2_en.md`
+  - Slides: `1_theory/05_thread_concurrency_2_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Classic Synchronization Problems
@@ -30,11 +30,11 @@
   - producer_consumer.c: Condition Variable-based implementation
   - bounded_buffer.c: Bounded Buffer implementation
   - xv6 spinlock.c code analysis (acquire, release, push_off, pop_off)
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:40–00:50] Homework briefing: xv6 kalloc Per-CPU free list + Barrier (bonus)
 
 ## Materials
-- Theory: `theory/05_thread_concurrency_2_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (2 examples)
-- Homework: `lab/homework/` — kalloc Per-CPU + barrier (skeleton + tests)
+- Theory: `1_theory/05_thread_concurrency_2_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (2 examples)
+- Homework: `2_lab/homework/` — kalloc Per-CPU + barrier (skeleton + tests)
 - Quiz: Yes (10 min, beginning of 1st hour)

@@ -16,7 +16,7 @@
   - Process State (New, Ready, Running, Waiting, Terminated)
   - PCB (Process Control Block)
   - Context Switch
-  - Slides: `theory/02_process_1_en.md`
+  - Slides: `1_theory/02_process_1_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Process Scheduling & Operations
@@ -32,11 +32,11 @@
   - exec_example.c: Practice exec family
   - pipe_example.c: Inter-process communication via pipe
   - redirect.c: I/O redirection with dup2
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:40–00:50] Homework briefing: Ping-pong + Minishell
 
 ## Materials
-- Theory: `theory/02_process_1_en.md`
-- Lab: `lab/README.md`, `lab/examples/`
-- Homework: `lab/homework/` — Ping-pong, Minishell (skeleton + tests)
+- Theory: `1_theory/02_process_1_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/`
+- Homework: `2_lab/homework/` — Ping-pong, Minishell (skeleton + tests)
 - Quiz: None

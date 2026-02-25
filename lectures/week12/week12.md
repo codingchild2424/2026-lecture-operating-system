@@ -17,7 +17,7 @@
   - Demand Paging, Page Fault handling
   - Copy-on-Write (COW) Fork
   - Why Page Replacement is needed
-  - Slides: `theory/12_virtual_memory_en.md`
+  - Slides: `1_theory/12_virtual_memory_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Page Replacement & Thrashing
@@ -33,11 +33,11 @@
   - lazy_concept.c: Lazy Allocation demo
   - Discussion: COW fork design in xv6
   - Discussion: Lazy Allocation design in xv6
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:45–00:50] Wrap-up
 
 ## Materials
-- Theory: `theory/12_virtual_memory_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (cow_concept.c, lazy_concept.c)
+- Theory: `1_theory/12_virtual_memory_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (cow_concept.c, lazy_concept.c)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

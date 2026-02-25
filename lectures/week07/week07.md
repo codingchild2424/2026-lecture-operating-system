@@ -17,7 +17,7 @@
   - Multilevel Feedback Queue Scheduling
   - Thread Scheduling (User-level vs Kernel-level)
   - Multi-Processor Scheduling (Load Balancing, Processor Affinity)
-  - Slides: `theory/07_cpu_scheduling_2_en.md`
+  - Slides: `1_theory/07_cpu_scheduling_2_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Real-Time & Algorithm Evaluation
@@ -32,7 +32,7 @@
 - [00:40–00:50] Midterm exam info (scope, format, guidelines)
 
 ## Materials
-- Theory: `theory/07_cpu_scheduling_2_en.md`
+- Theory: `1_theory/07_cpu_scheduling_2_en.md`
 - Lab: None (midterm review)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

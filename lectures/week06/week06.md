@@ -16,7 +16,7 @@
 - [00:15–00:50] Theory: CPU Scheduling Basics
   - CPU-I/O Burst Cycle, CPU Scheduler, Preemptive vs Non-preemptive
   - Scheduling Criteria (CPU utilization, throughput, turnaround, waiting, response time)
-  - Slides: `theory/06_cpu_scheduling_1_en.md`
+  - Slides: `1_theory/06_cpu_scheduling_1_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Scheduling Algorithms
@@ -33,11 +33,11 @@
   - Run multiple processes concurrently → observe round-robin
   - Analyze swtch.S: context switch flow
   - Analyze scheduler() function
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:40–00:50] Homework briefing: User-level Thread library
 
 ## Materials
-- Theory: `theory/06_cpu_scheduling_1_en.md`
-- Lab: `lab/README.md`, `lab/scheduler_trace.patch`
-- Homework: `lab/homework/` — User-level Thread (skeleton + 12 tests)
+- Theory: `1_theory/06_cpu_scheduling_1_en.md`
+- Lab: `2_lab/README.md`, `2_lab/scheduler_trace.patch`
+- Homework: `2_lab/homework/` — User-level Thread (skeleton + 12 tests)
 - Quiz: Yes (10 min, beginning of 1st hour)

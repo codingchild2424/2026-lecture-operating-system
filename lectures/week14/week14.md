@@ -14,7 +14,7 @@
   - Protection: Access Matrix, RBAC
   - Security: Program Threats, System/Network Threats
   - Cryptography, User Authentication
-  - Slides: `theory/14_security_protection_en.md`
+  - Slides: `1_theory/14_security_protection_en.md`
 
 ### 2nd Hour (Project Presentation — First Half) — 50 min
 - [00:00–00:50] Team project presentations (first half)
@@ -28,7 +28,7 @@
 - [00:45–00:50] Final written exam info + Course wrap-up
 
 ## Materials
-- Theory: `theory/14_security_protection_en.md`
+- Theory: `1_theory/14_security_protection_en.md`
 - Lab: None (project presentations)
 - Homework: None
 - Quiz: None

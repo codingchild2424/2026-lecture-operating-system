@@ -17,7 +17,7 @@
 - [00:35–00:50] Final project overview
   - Starting Week 9, teams of 3–4, coding agents allowed
   - OS prototype development + documentation + Week 14 presentation
-- Slides: `theory/01_introduction_en.md` (Part 1. OT)
+- Slides: `1_theory/01_introduction_en.md` (Part 1. OT)
 
 ### 2nd Hour (OS Overview) — 50 min
 - [00:00–00:10] What is an OS? (Kernel, Resource Allocator, Control Program)
@@ -25,7 +25,7 @@
 - [00:20–00:30] Key OS concepts at a glance (Process, Thread, Scheduling, Memory, FS)
 - [00:30–00:40] OS structures (Monolithic, Microkernel, Hybrid) + xv6 introduction
 - [00:40–00:50] Course roadmap + summary
-- Slides: `theory/01_introduction_en.md` (Part 2. What is an Operating System?)
+- Slides: `1_theory/01_introduction_en.md` (Part 2. What is an Operating System?)
 
 ### 3rd Hour (Lab — Coding Agents) — 50 min
 - [00:00–00:10] Introduction to coding agents (Gemini CLI, Claude Code, OpenCode)
@@ -35,10 +35,10 @@
   - Task 3: GitHub repo documentation
   - Task 4: RALPH technique (iterative refinement)
   - Task 5: Build a mini OS with an agent
-- Guide: `lab/coding-agents-guide.md`
+- Guide: `2_lab/coding-agents-guide.md`
 
 ## Materials
-- Theory: `theory/01_introduction_en.md`
-- Lab: `lab/coding-agents-guide.md`
+- Theory: `1_theory/01_introduction_en.md`
+- Lab: `2_lab/coding-agents-guide.md`
 - Homework: None
 - Quiz: None

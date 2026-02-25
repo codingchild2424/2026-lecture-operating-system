@@ -17,7 +17,7 @@
   - 4 Necessary Conditions (Mutual Exclusion, Hold & Wait, No Preemption, Circular Wait)
   - Resource Allocation Graph
   - Deadlock Prevention (breaking each condition)
-  - Slides: `theory/10_deadlocks_en.md`
+  - Slides: `1_theory/10_deadlocks_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Deadlock Resolution Strategies
@@ -31,11 +31,11 @@
   - deadlock_demo.c: Observe deadlock occurrence
   - deadlock_fix_ordering.c: Fix with lock ordering
   - deadlock_fix_trylock.c: Avoidance with trylock
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:45–00:50] Wrap-up
 
 ## Materials
-- Theory: `theory/10_deadlocks_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (3 demos)
+- Theory: `1_theory/10_deadlocks_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (3 demos)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

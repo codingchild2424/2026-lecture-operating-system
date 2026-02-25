@@ -17,7 +17,7 @@
   - Thread vs Process, Multicore Programming
   - Threading Models (Many-to-One, One-to-One, Many-to-Many)
   - Thread Libraries (Pthreads, Windows Threads, Java Threads)
-  - Slides: `theory/04_thread_concurrency_1_en.md`
+  - Slides: `1_theory/04_thread_concurrency_1_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Synchronization Basics
@@ -32,11 +32,11 @@
   - mutex_fix.c: Fix with Mutex protection
   - spinlock_impl.c: Implement Spinlock (atomic operations)
   - deadlock_demo.c: Deadlock scenario
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:40–00:50] Homework briefing: Parallel hash table (coarse → fine-grained locking)
 
 ## Materials
-- Theory: `theory/04_thread_concurrency_1_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (4 demos)
-- Homework: `lab/homework/` — Parallel hash table (skeleton + tests)
+- Theory: `1_theory/04_thread_concurrency_1_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (4 demos)
+- Homework: `2_lab/homework/` — Parallel hash table (skeleton + tests)
 - Quiz: Yes (10 min, beginning of 1st hour)

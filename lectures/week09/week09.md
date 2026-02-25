@@ -17,7 +17,7 @@
   - Mutex, Semaphore, Monitor review
   - xv6 sleep/wakeup mechanism
   - Lost wakeup problem and solution
-  - Slides: `theory/09_synchronization_en.md`
+  - Slides: `1_theory/09_synchronization_en.md`
 
 ### 2nd Hour (Theory — Part 2 + Project Briefing) — 50 min
 - [00:00–00:30] Theory: xv6 pipe implementation analysis
@@ -35,11 +35,11 @@
   - Pipe implementation analysis (piperead, pipewrite)
   - producer_consumer.c: Producer-consumer in xv6
   - wakeup_demo.c: sleep/wakeup behavior demo
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:45–00:50] Wrap-up
 
 ## Materials
-- Theory: `theory/09_synchronization_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (producer_consumer.c, wakeup_demo.c)
+- Theory: `1_theory/09_synchronization_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (producer_consumer.c, wakeup_demo.c)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

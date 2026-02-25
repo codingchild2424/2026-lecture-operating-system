@@ -17,7 +17,7 @@
   - Address Binding, Logical vs Physical Address
   - Contiguous Memory Allocation, Fragmentation
   - Paging basics
-  - Slides: `theory/11_main_memory_en.md`
+  - Slides: `1_theory/11_main_memory_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Page Table & TLB
@@ -32,11 +32,11 @@
   - Understand xv6 Sv39 page table structure
   - vmprint.c: Implement/analyze page table print function
   - va_translate.py: Virtual address decomposition tool
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:45–00:50] Wrap-up
 
 ## Materials
-- Theory: `theory/11_main_memory_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (vmprint.c, va_translate.py)
+- Theory: `1_theory/11_main_memory_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (vmprint.c, va_translate.py)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

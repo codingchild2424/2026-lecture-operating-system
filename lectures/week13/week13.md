@@ -17,7 +17,7 @@
   - File Concept, Access Methods
   - Directory Structure (Single-level, Two-level, Tree, Acyclic Graph)
   - File-System Mounting, File Sharing, Protection
-  - Slides: `theory/13_storage_management_en.md`
+  - Slides: `1_theory/13_storage_management_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: File System Implementation
@@ -33,11 +33,11 @@
   - Logging mechanism analysis
   - fs_trace.c: File system operation tracing
   - disk_layout.py: Disk layout visualization
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:45–00:50] Wrap-up + Next week project presentation reminder
 
 ## Materials
-- Theory: `theory/13_storage_management_en.md`
-- Lab: `lab/README.md`, `lab/examples/` (fs_trace.c, disk_layout.py)
+- Theory: `1_theory/13_storage_management_en.md`
+- Lab: `2_lab/README.md`, `2_lab/examples/` (fs_trace.c, disk_layout.py)
 - Homework: None
 - Quiz: Yes (10 min, beginning of 1st hour)

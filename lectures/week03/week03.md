@@ -17,7 +17,7 @@
   - OS Services, System Call Interface
   - System Call types (Process, File, Device, Info, Communication, Protection)
   - Linkers and Loaders
-  - Slides: `theory/03_process_2_en.md`
+  - Slides: `1_theory/03_process_2_en.md`
 
 ### 2nd Hour (Theory — Part 2) — 50 min
 - [00:00–00:50] Theory: Comparing OS Structures
@@ -30,11 +30,11 @@
   - xv6 directory structure (kernel/, user/)
   - Trace system call path: user/ → usys.S → ecall → syscall.c
   - Analyze struct proc
-  - Guide: `lab/README.md`
+  - Guide: `2_lab/README.md`
 - [00:40–00:50] Homework briefing: Add a trace system call
 
 ## Materials
-- Theory: `theory/03_process_2_en.md`
-- Lab: `lab/README.md`
-- Homework: `lab/homework/` — trace syscall (patch + tests)
+- Theory: `1_theory/03_process_2_en.md`
+- Lab: `2_lab/README.md`
+- Homework: `2_lab/homework/` — trace syscall (patch + tests)
 - Quiz: Yes (10 min, beginning of 1st hour)
