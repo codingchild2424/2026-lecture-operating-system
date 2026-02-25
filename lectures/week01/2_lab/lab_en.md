@@ -59,24 +59,24 @@ graph LR
 
 # Available Agents
 
-<div class="grid grid-cols-2 gap-4">
-<div>
-
-### Free Options
-| Agent | Notes |
-|---|---|
-| **Gemini CLI** | Google's agent, good default |
-| **OpenCode** | Open-source, self-hostable |
-
+<div class="grid grid-cols-3 gap-6 mt-4">
+<div class="text-center">
+  <img src="./images/gemini.png" class="w-16 h-16 mx-auto mb-2" />
+  <strong>Gemini CLI</strong><br/>
+  <span class="text-sm text-green-600">Free</span><br/>
+  <span class="text-xs">Google's agent<br/>Good default choice</span>
 </div>
-<div>
-
-### Paid Options
-| Agent | Notes |
-|---|---|
-| **Claude Code** | Strong multi-file reasoning |
-| **GPT Codex** | OpenAI's coding agent |
-
+<div class="text-center">
+  <img src="./images/claude_ai.png" class="w-16 h-16 mx-auto mb-2 rounded-lg" />
+  <strong>Claude Code</strong><br/>
+  <span class="text-sm text-orange-600">Paid</span><br/>
+  <span class="text-xs">Anthropic's agent<br/>Strong multi-file reasoning</span>
+</div>
+<div class="text-center">
+  <img src="./images/openai.png" class="w-16 h-16 mx-auto mb-2" />
+  <strong>Codex CLI</strong><br/>
+  <span class="text-sm text-orange-600">Paid</span><br/>
+  <span class="text-xs">OpenAI's agent<br/>Open-source CLI</span>
 </div>
 </div>
 
@@ -132,18 +132,27 @@ Review — did the agent make sensible decisions?
 
 ### Task 4 — RALPH Technique
 
+<div class="flex items-start gap-3">
+<img src="./images/ralph_wiggum.png" class="w-24 mt-1" />
+<div>
+
+**R**equest → **A**nalyze → **L**ist issues → **P**rompt again → **H**armonize
+
 ```mermaid
 graph TD
-    R["1️⃣ Request<br/>initial prompt"] --> A["2️⃣ Analyze<br/>review output"]
-    A --> L["3️⃣ List issues<br/>find gaps"]
-    L --> P["4️⃣ Prompt again<br/>targeted fix"]
-    P --> H["5️⃣ Harmonize<br/>satisfactory?"]
+    R["1️⃣ Request"] --> A["2️⃣ Analyze"]
+    A --> L["3️⃣ List issues"]
+    L --> P["4️⃣ Prompt again"]
+    P --> H["5️⃣ Harmonize"]
     H -->|No| R
     H -->|Yes| Done["✅ Done"]
     style Done fill:#c8e6c9
 ```
 
 Practice this loop on the README from Task 3.
+
+</div>
+</div>
 
 </div>
 </div>
