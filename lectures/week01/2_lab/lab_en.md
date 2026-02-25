@@ -130,16 +130,12 @@ Review — did the agent make sensible decisions?
 </div>
 <div>
 
-### Task 4 — RALPH Technique
-
-<div class="flex items-start gap-3">
-<img src="./images/ralph_wiggum.png" class="w-24 mt-1" />
-<div>
+### Task 4 — RALPH Technique <img src="./images/ralph_wiggum.png" class="inline w-16 ml-2 align-middle" />
 
 **R**equest → **A**nalyze → **L**ist issues → **P**rompt again → **H**armonize
 
 ```mermaid
-graph TD
+graph LR
     R["1️⃣ Request"] --> A["2️⃣ Analyze"]
     A --> L["3️⃣ List issues"]
     L --> P["4️⃣ Prompt again"]
@@ -150,9 +146,6 @@ graph TD
 ```
 
 Practice this loop on the README from Task 3.
-
-</div>
-</div>
 
 </div>
 </div>
