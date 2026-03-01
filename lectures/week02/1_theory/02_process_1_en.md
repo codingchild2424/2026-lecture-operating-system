@@ -13,7 +13,7 @@ transition: slide-left
 Operating Systems Ch 3 (Sections 3.1 – 3.3)
 
 <div class="pt-4 text-gray-400">
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 </div>
 
 ---

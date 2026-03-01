@@ -12,7 +12,7 @@ transition: slide-left
 
 Week 1 — Introduction
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 
@@ -26,7 +26,7 @@ Course Orientation
 
 **Unggi Lee**, codingchild@korea.ac.kr
 
-- Assistant Professor, Dept. of Computer Science, Korea University Sejong Campus
+- Assistant Professor, Dept. of Computer Science & Software, Korea University Sejong Campus
 - Previously:
   - Assistant Professor, Dept. of Computer Engineering, Chosun University
   - AI/NLP Engineer in Global EdTech (Enuma, I-Scream Edu)
@@ -36,7 +36,7 @@ Course Orientation
   - NLP & Robotics: Large Language Models (LLMs), Vision-Language-Action (VLA)
 - Lab Activities ([Lab](https://codingchild2424.github.io/lab-website/)):
   - Published a VLA preprint with undergraduates at Chosun University
-  - Industry–academia partnerships with Upstage, Newdive, and others
+  - Industry–academia partnerships with Upstage, Neudive, and others
   - Collaborations with researchers in the US, Singapore, and the UK
 
 ---

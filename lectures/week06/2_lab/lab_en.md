@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 6 — Context Switching
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

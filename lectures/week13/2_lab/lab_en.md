@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 13 — File System Internals
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

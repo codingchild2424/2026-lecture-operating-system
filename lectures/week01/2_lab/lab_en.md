@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 1 — Coding Agents
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

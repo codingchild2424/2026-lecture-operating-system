@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 9 — sleep/wakeup and Pipes
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

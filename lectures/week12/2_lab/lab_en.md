@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 12 — COW Fork & Lazy Allocation
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

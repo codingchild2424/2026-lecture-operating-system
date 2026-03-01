@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 4 — Race Conditions and Locks
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 

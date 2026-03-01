@@ -12,7 +12,7 @@ transition: slide-left
 
 ## Week 3 — Exploring xv6 Internals
 
-Korea University Sejong Campus, Department of Computer Science
+Korea University Sejong Campus, Department of Computer Science & Software
 
 ---
 
