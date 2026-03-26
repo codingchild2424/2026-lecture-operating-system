@@ -1,234 +1,208 @@
-# Week 5 Assignment: Advanced Synchronization
+# Week 5 Assignment: Implicit Threading
 
-> Textbook reference: xv6 textbook Ch 6 (Locking), Ch 9 (Concurrency Revisited)
+> Textbook reference: Silberschatz Ch 4 (Sections 4.5–4.7)
 >
 > Deadline: Before the next class
 >
-> **Environment**: Assignment 1 (kalloc) requires xv6-riscv — see [Week 2 setup guide](../../week02/2_lab/setup_xv6_env.md). Assignment 2 (barrier) runs locally with gcc.
+> **Environment**: Linux or macOS with gcc (OpenMP requires `-fopenmp`)
 
 ---
 
-## Assignment 1: xv6 kalloc Per-CPU Free List Improvement (Required)
+## Assignment 1: Fork-Join Parallel Merge Sort (Required)
 
-> Based on textbook Ch 6, Exercise 3
+> Based on textbook Ch 4.5.2 — Fork-Join Parallelism
 
 ### Background
 
-The current physical memory allocator in xv6 (`kernel/kalloc.c`) is implemented as follows:
+**Fork-Join** is a parallel pattern where a task is divided into subtasks
+(fork), each subtask runs in parallel, and the results are combined (join).
+This maps naturally to divide-and-conquer algorithms like merge sort.
 
-```c
-struct {
-  struct spinlock lock;
-  struct run *freelist;
-} kmem;
+```
+            [8, 3, 1, 5, 4, 7, 2, 6]
+                    fork
+           /                    \
+    [8, 3, 1, 5]          [4, 7, 2, 6]
+        fork                   fork
+       /    \                 /    \
+   [8,3]  [1,5]          [4,7]  [2,6]
+     |      |               |      |
+   [3,8]  [1,5]          [4,7]  [2,6]
+       \    /                 \    /
+    [1, 3, 5, 8]          [2, 4, 6, 7]
+           \                    /
+                    join
+            [1, 2, 3, 4, 5, 6, 7, 8]
 ```
 
-- A **single free list** + **single lock** for the entire system
-- All CPUs compete for the same lock when calling `kalloc()`/`kfree()`
-- As the number of CPUs increases, **lock contention** intensifies -> performance degradation
+In a sequential merge sort, each division is processed one at a time.
+In a fork-join merge sort, the two halves are sorted **in parallel** using threads.
 
 ### Goal
 
-Change `kmem` to a **per-CPU free list array** to improve parallel memory allocation performance.
-
-```
-Before:                          After:
-┌──────────────────┐            ┌──────────────────┐
-│  kmem             │            │  kmem[0]          │  Dedicated to CPU 0
-│  ├─ lock          │            │  ├─ lock          │
-│  └─ freelist ─→...│            │  └─ freelist ─→...│
-└──────────────────┘            ├──────────────────┤
-    Shared by all CPUs           │  kmem[1]          │  Dedicated to CPU 1
-                                │  ├─ lock          │
-                                │  └─ freelist ─→...│
-                                ├──────────────────┤
-                                │  ...              │
-                                ├──────────────────┤
-                                │  kmem[NCPU-1]     │  Dedicated to CPU 7
-                                │  ├─ lock          │
-                                │  └─ freelist ─→...│
-                                └──────────────────┘
-```
-
-### File to Modify
-
-You only need to modify a single file: `kernel/kalloc.c`.
+Implement a parallel merge sort using Pthreads that:
+1. **Forks** a new thread to sort one half while the current thread sorts the other
+2. **Joins** the thread and merges the two sorted halves
+3. Uses a **depth threshold** to avoid creating too many threads (falls back to sequential below the threshold)
+4. Compares performance against the sequential version
 
 ### Implementation Requirements
 
-#### 1. Data Structure Change
+#### 1. `merge()` — Merge two sorted halves
+
+Standard merge operation. This is already provided in the skeleton.
+
+#### 2. `merge_sort_sequential()` — Sequential merge sort
+
+Standard recursive merge sort (no threads). Used as the baseline for comparison
+and as a fallback when the depth threshold is reached.
+
+#### 3. `merge_sort_parallel()` — Parallel fork-join merge sort
 
 ```c
-// Original
-struct {
-  struct spinlock lock;
-  struct run *freelist;
-} kmem;
+struct sort_arg {
+    int *array;
+    int *temp;
+    int left;
+    int right;
+    int depth;      /* current recursion depth */
+};
 
-// Modified
-struct {
-  struct spinlock lock;
-  struct run *freelist;
-} kmem[NCPU];   // NCPU is defined as 8 in param.h
+void *merge_sort_parallel(void *arg)
+{
+    // If array size <= 1, return
+    // If depth >= MAX_DEPTH, fall back to sequential
+    //
+    // Otherwise:
+    //   1. Fork: create a thread for the left half
+    //   2. Sort the right half in the current thread (recursive call)
+    //   3. Join: wait for the left-half thread
+    //   4. Merge the two sorted halves
+}
 ```
 
-#### 2. Modify `kinit()`
+**Key design decisions:**
+- Only fork one thread per level (not two) — the current thread handles the other half
+- `MAX_DEPTH` limits the number of threads to 2^MAX_DEPTH
+- Below `MAX_DEPTH`, fall back to `merge_sort_sequential()`
 
-- Initialize the lock for all CPUs (`initlock`)
-- Call `freerange` the same way as before
-- Since `kinit` runs only on CPU 0, all initial free pages go into CPU 0's freelist
+#### 4. `main()` — Performance comparison
 
-#### 3. Modify `kfree()`
-
-- Return the page to the current CPU's freelist
-- To safely call `cpuid()`, interrupts must be disabled
-- Use `push_off()` / `pop_off()` to manage interrupts
-
-```
-kfree flow:
-  push_off()
-  id = cpuid()
-  acquire(&kmem[id].lock)
-  Add page to freelist
-  release(&kmem[id].lock)
-  pop_off()
-```
-
-#### 4. Modify `kalloc()`
-
-- **First**, attempt to allocate from the current CPU's freelist
-- **If the local freelist is empty**, **steal** from another CPU's freelist
-- If all CPU freelists are empty, return 0 (out of memory)
-
-```
-kalloc flow:
-  push_off()
-  id = cpuid()
-
-  // 1. Try from own CPU
-  acquire(&kmem[id].lock)
-  r = remove one from kmem[id].freelist
-  release(&kmem[id].lock)
-
-  // 2. If failed, steal from other CPUs
-  if(!r) {
-    for each other CPU i:
-      acquire(&kmem[i].lock)
-      r = remove one from kmem[i].freelist
-      release(&kmem[i].lock)
-      if(r) break
-  }
-
-  pop_off()
-  return r
-```
-
-### Important Notes
-
-1. **Deadlock prevention**: When stealing, hold only one lock at a time. Holding two locks simultaneously risks deadlock.
-
-2. **cpuid() and interrupts**: `cpuid()` reads the `tp` register to return the current CPU number. If called with interrupts enabled, a context switch could cause it to return an incorrect CPU number. It must be called with interrupts disabled.
-
-3. **push_off inside acquire**: `acquire()` internally calls `push_off()`. However, since `cpuid()` must be called before `acquire()`, you need to call `push_off()` separately beforehand.
-
-### Getting Started
-
-A skeleton file is provided:
-
-```bash
-# Copy the skeleton file to the xv6 source
-cp skeleton/kalloc_percpu.c ../../xv6-riscv/kernel/kalloc.c
-```
-
-Find the `TODO` comments in the skeleton file and complete the code.
-
-### Testing
-
-```bash
-cd ../../xv6-riscv
-make clean
-make qemu
-```
-
-In the xv6 shell:
-```
-$ usertests
-```
-
-All tests must pass with `OK`. See `tests/test_kalloc.sh` for detailed testing instructions.
-
-### Grading Criteria
-
-| Item | Weight |
-|------|------|
-| Correctly change `kmem` to a per-CPU array | 20% |
-| Initialize all CPU locks in `kinit()` | 10% |
-| Return to current CPU freelist in `kfree()` | 20% |
-| Prioritize own CPU allocation in `kalloc()` | 20% |
-| Implement steal in `kalloc()` | 20% |
-| Pass all `usertests` | 10% |
-
----
-
-## Assignment 2: Barrier Implementation (Bonus, +20 points)
-
-### Background
-
-A **Barrier** is a synchronization technique where multiple threads wait at a specific point until all of them have arrived.
-
-```
-Thread 0: --- work ---|   wait   |--- next work ---
-Thread 1: --- work ----|  wait  |--- next work ---
-Thread 2: --- work ------| wait |--- next work ---
-                          ^
-                     barrier point
-                  (when the last thread arrives,
-                   all proceed simultaneously)
-```
-
-### Goal
-
-Implement a barrier using only `pthread_mutex` and `pthread_cond`.
-
-### Requirements
-
-1. `barrier_init(b, n)`: Initialize the barrier for n threads
-2. `barrier_wait(b)`: Wait at the barrier. All proceed when the last thread arrives
-3. `barrier_destroy(b)`: Release resources
-4. **Reusable**: The barrier must be usable across multiple rounds
-
-### Key Point: Reusable Barrier
-
-A naive implementation works only once and produces bugs when reused:
-
-```
-Problem scenario:
-1. Round 0: All 5 threads arrive -> count reset, broadcast
-2. Thread A quickly enters barrier_wait for round 1 (count=1)
-3. Thread B is still waking up from round 0's wait
-   -> When B checks count, it's 1, but it can't tell if this is round 0 or round 1!
-```
-
-Solution: Use a **round (generation) number** to distinguish rounds.
+- Generate a random array of N integers
+- Sort with sequential merge sort and measure time
+- Sort with parallel merge sort and measure time
+- Print speedup ratio
+- Verify both produce the same sorted result
 
 ### Getting Started
 
 ```bash
 cd skeleton/
-gcc -Wall -pthread -o barrier barrier.c
-./barrier
+gcc -Wall -pthread -O2 -o mergesort mergesort.c
+./mergesort              # default: 10,000,000 elements, depth 3
+./mergesort 5000000 4    # custom: 5M elements, depth 4
 ```
 
-Find the `TODO` comments in the skeleton file and complete the code. Test code is already included and validates with 5 threads across 3 rounds.
+Find the `TODO` comments in `mergesort.c` and complete the code.
+
+### Expected Output
+
+```
+=== Fork-Join Parallel Merge Sort ===
+Array size: 10000000, Max thread depth: 3 (up to 8 threads)
+
+Sequential: 1.2345 sec
+Parallel:   0.4567 sec
+Speedup:    2.70x
+Verified:   CORRECT
+```
+
+### Questions to Consider
+
+1. What happens if `MAX_DEPTH` is too large? (Hint: thread creation overhead)
+2. Why do we fork only one thread instead of two at each level?
+3. How does this relate to Java's `ForkJoinPool` discussed in the textbook?
+4. Compare the speedup with Amdahl's Law — what is the serial fraction?
 
 ### Grading Criteria
 
 | Item | Weight |
-|------|------|
-| Correct initialization in `barrier_init` | 20% |
-| Basic `barrier_wait` operation (1 round) | 30% |
-| Reusable `barrier_wait` (multiple rounds) | 40% |
-| Resource cleanup and code quality | 10% |
+|------|--------|
+| Correct `merge_sort_parallel()` with thread fork/join | 30% |
+| Proper depth threshold to limit thread count | 20% |
+| Correct merge producing sorted output | 20% |
+| Performance comparison (sequential vs parallel) | 20% |
+| Code quality and answers to questions | 10% |
+
+---
+
+## Assignment 2: OpenMP Matrix Multiplication (Bonus, +20 points)
+
+> Based on textbook Ch 4.5.3 — OpenMP
+
+### Background
+
+Matrix multiplication is a classic data-parallel workload. Each element
+of the result matrix C can be computed independently:
+
+```
+C[i][j] = sum(A[i][k] * B[k][j]) for k = 0..N-1
+```
+
+This makes it ideal for OpenMP's `#pragma omp parallel for`.
+
+### Goal
+
+Implement matrix multiplication in three versions and compare performance:
+1. **Sequential** — no parallelism
+2. **OpenMP basic** — `#pragma omp parallel for` on the outer loop
+3. **OpenMP optimized** — with `collapse(2)` and/or loop reordering (i-k-j)
+
+### Implementation Requirements
+
+#### 1. `matmul_sequential()` — Baseline
+
+Standard triple-nested loop (i-j-k order).
+
+#### 2. `matmul_openmp_basic()` — Basic OpenMP
+
+Add `#pragma omp parallel for` to the outermost loop.
+
+#### 3. `matmul_openmp_optimized()` — Optimized OpenMP
+
+Apply one or both optimizations:
+- **`collapse(2)`**: Parallelize across both i and j loops for better load balancing
+- **Loop reordering (i-k-j)**: Better cache locality since B is accessed sequentially
+
+### Getting Started
+
+```bash
+cd skeleton/
+gcc -Wall -fopenmp -O2 -o matmul matmul.c
+./matmul              # default: 1024x1024
+./matmul 512          # custom: 512x512
+```
+
+### Expected Output
+
+```
+=== OpenMP Matrix Multiplication ===
+Matrix size: 1024 x 1024
+
+Sequential (i-j-k):     3.4567 sec
+OpenMP basic:            1.2345 sec  (2.80x)
+OpenMP optimized (i-k-j): 0.5678 sec  (6.09x)
+Verified: CORRECT
+```
+
+### Grading Criteria
+
+| Item | Weight |
+|------|--------|
+| Correct sequential matrix multiplication | 20% |
+| Correct OpenMP basic version | 30% |
+| Optimized version with measurable improvement | 30% |
+| Performance comparison and analysis | 20% |
 
 ---
 
@@ -237,25 +211,23 @@ Find the `TODO` comments in the skeleton file and complete the code. Test code i
 ```
 week05/3_assignment/
 ├── skeleton/
-│   ├── kalloc_percpu.c     <- Complete the TODOs and submit (required)
-│   └── barrier.c           <- Complete the TODOs and submit (bonus)
-└── report.md               <- Brief implementation description (optional)
+│   ├── mergesort.c        <- Complete the TODOs and submit (required)
+│   └── matmul.c           <- Complete the TODOs and submit (bonus)
+└── report.md              <- Brief implementation description (optional)
 ```
 
 ### report.md Writing Guide (Optional)
 
 Bonus points will be awarded for answering the following questions:
 
-1. In what situations does performance improve after changing to a per-CPU free list?
-2. Can deadlock occur during the steal process? How did you prevent it?
-3. (Bonus) What bugs occur if the round variable is absent in the barrier?
+1. How does `MAX_DEPTH` affect performance? What is the optimal value on your machine?
+2. Why does loop reordering (i-k-j) improve cache performance?
+3. Compare the fork-join pattern with OpenMP — when would you use each?
 
 ---
 
 ## References
 
-- xv6 textbook Chapter 6: Locking
-- xv6 source code: `kernel/kalloc.c`, `kernel/spinlock.c`, `kernel/param.h`
-- OSTEP Chapter 28: Locks
-- OSTEP Chapter 30: Condition Variables
-- OSTEP Chapter 31: Semaphores (Barrier concept)
+- Silberschatz Ch 4.5.2: Fork-Join Parallelism
+- Silberschatz Ch 4.5.3: OpenMP
+- Java ForkJoinPool documentation (conceptual comparison)
