@@ -33,7 +33,7 @@
   - lab3_arg_pitfall.c: Thread argument pitfall (`&i` vs `&tids[i]`)
   - lab4_speedup.c: Measuring speedup with varying thread counts (Amdahl's Law)
   - Guide: `2_lab/README.md`
-- [00:40–00:50] Homework briefing: Parallel hash table (coarse → fine-grained locking)
+- [00:40–00:50] Homework briefing: Parallel histogram (data parallelism + Amdahl's Law)
 
 ## Materials
 - Theory: `1_theory/04_thread_concurrency_1_en.md`

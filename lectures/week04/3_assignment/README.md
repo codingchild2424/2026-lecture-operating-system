@@ -1,199 +1,159 @@
-# Week 4 Homework: Parallel Hash Table
+# Week 4 Assignment: Pthreads Data Parallelism
 
-> Textbook: xv6 Chapter 6 (Locking) - Exercise 4
-> Submission file: `hashtable.c` (modified file)
+> Textbook: Silberschatz Ch 4 (Threads & Concurrency)
+>
+> Deadline: Before the next class
+>
+> **Environment**: Linux or macOS with gcc and pthreads
 
-## Overview
+---
 
-In this assignment, you will implement a **parallel hash table** using pthreads.
-You will implement two locking strategies to ensure safe operation in a multithreaded environment and compare their performance.
+## Assignment: Parallel Histogram (Required)
 
-- **Phase 1**: Coarse-grained locking (single global mutex)
-- **Phase 2**: Fine-grained locking (per-bucket mutex)
+### Background
 
-## Learning Objectives
+A **histogram** counts how often each value appears in a dataset.
+For example, given exam scores 0–99 for 10 million students,
+a histogram counts how many students got each score.
 
-- Understand the concepts of critical sections and mutual exclusion
-- Analyze the trade-offs of coarse-grained vs. fine-grained locking
-- Experiment with the impact of lock granularity on parallel performance
-- Compare with xv6 kernel locking strategies (e.g., the freelist lock in `kalloc.c`)
-
-## File Structure
+This is a classic **data parallelism** problem: the dataset is split
+among N threads, each builds a local histogram over its chunk, and
+the main thread merges the results.
 
 ```
-3_assignment/
-  skeleton/          <- Working directory (code here)
-    hashtable.h      - Structure definitions (no modification needed)
-    hashtable.c      - Implementation file with TODOs (modify this file)
-    main.c           - Benchmark code (no modification needed)
-    Makefile         - Build configuration
-  solution/          - Reference solution (available after submission)
-  tests/             - Test scripts
-    test_correctness.sh  - Correctness test
-    test_performance.sh  - Performance measurement
+Data: [72, 85, 72, 91, 85, 60, ...]   (10,000,000 values)
+
+Thread 0: [72, 85, 72, ...]  → local_hist0[72]=2, [85]=1, ...
+Thread 1: [91, 85, 60, ...]  → local_hist1[91]=1, [85]=1, [60]=1, ...
+Thread 2: ...                 → local_hist2[...]
+Thread 3: ...                 → local_hist3[...]
+
+Merge: global_hist[i] = sum of local_hist*[i] for all threads
 ```
 
-## Build and Run
+Each thread works on its own local histogram (separate array), so
+no synchronization is needed during the counting phase. This is the
+same pattern as `partial_sum[id]` from Lab 2.
+
+### Learning Objectives
+
+- Apply **data parallelism** with Pthreads (`pthread_create`, `pthread_join`)
+- Use **separate per-thread arrays** to avoid sharing conflicts
+- Measure **speedup** with different thread counts and relate to **Amdahl's Law**
+- Practice the create-loop / join-loop pattern from the textbook
+
+### Implementation Requirements
+
+#### 1. Data Generation
+
+Generate an array of `N` random integers in range `[0, NUM_BINS)`:
+
+```c
+#define NUM_BINS 100        /* histogram bins (e.g., exam scores 0–99) */
+#define DEFAULT_SIZE 10000000
+```
+
+#### 2. `histogram_sequential()` — Baseline
+
+```c
+void histogram_sequential(int *data, int n, int *hist)
+{
+    memset(hist, 0, NUM_BINS * sizeof(int));
+    for (int i = 0; i < n; i++)
+        hist[data[i]]++;
+}
+```
+
+#### 3. `histogram_parallel()` — Parallel version
+
+Each thread:
+1. Receives its chunk range (`start`, `end`) and a **local histogram array**
+2. Counts values in `data[start..end)` into its local histogram
+3. Returns (no shared state modified)
+
+Main thread:
+1. Creates `nthreads` threads with separate local histograms
+2. Joins all threads
+3. Merges local histograms into the global result:
+   `global_hist[i] = sum of local_hist[t][i]` for all threads t
+
+#### 4. `main()` — Performance comparison
+
+- Run sequential and parallel (1, 2, 4, 8 threads)
+- Print elapsed time and speedup for each
+- Verify parallel results match sequential
+
+### Getting Started
 
 ```bash
 cd skeleton/
-make
-
-# Run: ./hashtable_bench [none|coarse|fine] [threads] [keys]
-./hashtable_bench none   4 100000   # No locking (race condition occurs)
-./hashtable_bench coarse 4 100000   # Coarse-grained
-./hashtable_bench fine   4 100000   # Fine-grained
+gcc -Wall -pthread -O2 -o histogram histogram.c
+./histogram                    # default: 10M values, 4 threads
+./histogram 20000000 8         # custom: 20M values, 8 threads
 ```
 
-## Assignment Details
+Find the `TODO` comments in `histogram.c` and complete the code.
 
-### Phase 1: Coarse-grained Locking
+### Expected Output
 
-Modify `hashtable.c` to protect the hash table with a **single global mutex**.
+```
+=== Parallel Histogram ===
+Data size: 10000000, Bins: 100
 
-Implementation location: Find the `TODO` comments in `hashtable.c` and modify them
+Sequential:          0.0312 sec
 
-**What to implement:**
+Parallel (1 thread): 0.0315 sec  Speedup: 0.99x
+Parallel (2 threads): 0.0178 sec  Speedup: 1.75x
+Parallel (4 threads): 0.0098 sec  Speedup: 3.18x
+Parallel (8 threads): 0.0067 sec  Speedup: 4.66x
 
-1. `hashtable_init()`: Initialize `ht->global_lock` (`pthread_mutex_init`)
-2. `hashtable_destroy()`: Destroy `ht->global_lock` (`pthread_mutex_destroy`)
-3. `hashtable_insert()`: Acquire the global lock at the start of the function, release before return
-4. `hashtable_lookup()`: Same
-5. `hashtable_delete()`: Same
+Verification: ALL CORRECT
 
-**Key idea:**
-```c
-void hashtable_insert(struct hashtable *ht, int key, int value)
-{
-    // Lock only when strategy is LOCK_COARSE
-    if (ht->strategy == LOCK_COARSE)
-        pthread_mutex_lock(&ht->global_lock);
-
-    // ... existing code ...
-
-    if (ht->strategy == LOCK_COARSE)
-        pthread_mutex_unlock(&ht->global_lock);
-}
+--- Top 5 most frequent values ---
+Value 42: 100,234 occurrences
+Value 17: 100,198 occurrences
+...
 ```
 
-**Verification:**
-```bash
-make
-./hashtable_bench coarse 4 100000
-# "All keys found correctly." should be printed
-```
+### Questions (include in report)
 
-### Phase 2: Fine-grained Locking
+1. Why does each thread use a **local histogram** instead of a shared one?
+   What would happen if all threads incremented `global_hist[data[i]]++` directly?
 
-Use **per-bucket mutexes** so that threads accessing different buckets can execute concurrently.
+2. Plot or describe how speedup changes with 1, 2, 4, 8 threads.
+   Does it match the prediction from Amdahl's Law? What is the serial fraction?
 
-**What to implement:**
+3. What is the overhead of creating/joining threads? Try with a very
+   small dataset (e.g., 1000 elements) — is parallel still faster?
 
-1. `hashtable_init()`: Initialize each `ht->buckets[i].lock`
-2. `hashtable_destroy()`: Destroy each `ht->buckets[i].lock`
-3. `hashtable_insert()`: Acquire/release only the relevant bucket's lock
-4. `hashtable_lookup()`: Same
-5. `hashtable_delete()`: Same
+4. Compare this pattern with Lab 2 (parallel array sum). What is similar?
+   What is different?
 
-**Key idea:**
-```c
-void hashtable_insert(struct hashtable *ht, int key, int value)
-{
-    int idx = hash(key);
+### Grading Criteria
 
-    if (ht->strategy == LOCK_FINE)
-        pthread_mutex_lock(&ht->buckets[idx].lock);
+| Item | Weight |
+|------|--------|
+| Correct thread creation with chunk splitting | 25% |
+| Local histogram per thread (no sharing conflicts) | 25% |
+| Correct merge of local histograms | 20% |
+| Performance measurement across thread counts | 20% |
+| Report answers | 10% |
 
-    // ... existing code (accesses only bucket idx) ...
-
-    if (ht->strategy == LOCK_FINE)
-        pthread_mutex_unlock(&ht->buckets[idx].lock);
-}
-```
-
-**Verification:**
-```bash
-./hashtable_bench fine 4 100000
-# "All keys found correctly." should be printed
-```
-
-### Performance Comparison Report
-
-Compare the performance of coarse-grained and fine-grained locking with 1, 2, and 4 threads.
-
-```bash
-# Use the test script
-cd ../tests/
-./test_performance.sh ../skeleton/hashtable_bench
-```
-
-Or run manually:
-```bash
-# Coarse-grained
-./hashtable_bench coarse 1 200000
-./hashtable_bench coarse 2 200000
-./hashtable_bench coarse 4 200000
-
-# Fine-grained
-./hashtable_bench fine 1 200000
-./hashtable_bench fine 2 200000
-./hashtable_bench fine 4 200000
-```
-
-## Testing
-
-```bash
-# Correctness test (tests both coarse and fine)
-cd tests/
-./test_correctness.sh ../skeleton/hashtable_bench
-
-# Performance test
-./test_performance.sh ../skeleton/hashtable_bench
-```
+---
 
 ## Deliverables
 
-1. **`hashtable.c`**: Source code with locking implemented
-2. **Report** (written as short text or comments):
-   - Performance measurement results table (strategy x thread count)
-   - Answers to the following questions:
+```
+week04/3_assignment/
+├── skeleton/
+│   └── histogram.c     <- Complete the TODOs and submit
+└── report.md           <- Performance results and question answers
+```
 
-### Report Questions
-
-1. What problems occur when using 4 threads in `none` mode?
-   Run `./hashtable_bench none 4 100000` and explain the results.
-
-2. In coarse-grained locking, how does performance change when increasing the number of threads from 1 to 4?
-   Why is that?
-
-3. Is fine-grained locking faster than coarse-grained? Why?
-
-4. How does the performance of fine-grained locking change when you change the number of buckets (`NBUCKETS`) from 13 to 101?
-   (Hint: Modify `NBUCKETS` in `hashtable.h` and rebuild)
-
-5. What locking strategy does xv6's `kalloc.c` use?
-   What advantages would switching to fine-grained locking provide?
-
-## Grading Criteria
-
-| Item | Score |
-|------|-------|
-| Phase 1: Coarse-grained correctness | 30% |
-| Phase 2: Fine-grained correctness | 30% |
-| Performance measurement and comparison | 20% |
-| Report question answers | 20% |
-
-## Hints
-
-- Find and implement all `TODO` comments in `hashtable.c`.
-- Check `ht->strategy` to use the appropriate lock.
-- If you acquire a lock, you **must** release it on **every return path**. (Especially the mid-function return in `hashtable_insert`)
-- You only need to use `pthread_mutex_init`, `pthread_mutex_lock`, `pthread_mutex_unlock`, and `pthread_mutex_destroy`.
-- Creating helper functions makes the code cleaner (refer to the solution).
+---
 
 ## References
 
-- xv6 textbook Chapter 6: Locking
-- `kernel/spinlock.c`: xv6's spinlock implementation
-- `kernel/kalloc.c`: xv6 memory allocator (example of coarse-grained lock usage)
-- `pthread_mutex(3)` man page
+- Silberschatz Ch 4.2: Multicore Programming, Amdahl's Law
+- Silberschatz Ch 4.4: Pthreads — create, join, data sharing
+- Lab 2: Data Parallel Array Sum (same pattern, simpler scale)
