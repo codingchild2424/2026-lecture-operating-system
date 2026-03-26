@@ -1,6 +1,6 @@
 ---
 theme: default
-title: "Week 05 — Lab: Advanced Synchronization"
+title: "Week 05 — Lab: Implicit Threading and Threading Issues"
 info: "Operating Systems"
 class: text-center
 drawings:
@@ -10,7 +10,7 @@ transition: slide-left
 
 # Operating Systems Lab
 
-## Week 5 — Advanced Synchronization
+## Week 5 — Implicit Threading and Threading Issues
 
 Korea University Sejong Campus, Department of Computer Science & Software
 
@@ -18,235 +18,239 @@ Korea University Sejong Campus, Department of Computer Science & Software
 
 # Lab Overview
 
-**Duration**: ~50 minutes · 4 exercises
+**Duration**: ~50 minutes · 4 labs
 
 ```mermaid
 graph LR
-    E1["Ex 1<br/>Producer-Consumer"] --> E2["Ex 2<br/>Bounded Buffer"]
-    E2 --> E3["Ex 3<br/>xv6 spinlock.c"]
-    E3 --> E4["Ex 4<br/>xv6 kalloc.c"]
-    style E1 fill:#e3f2fd
-    style E2 fill:#fff3e0
-    style E3 fill:#e8f5e9
-    style E4 fill:#fce4ec
+    L1["Lab 1<br/>Thread Pool"] --> L2["Lab 2<br/>OpenMP"]
+    L2 --> L3["Lab 3<br/>fork() + Threads"]
+    L3 --> L4["Lab 4<br/>TLS"]
+    style L1 fill:#c8e6c9
+    style L2 fill:#bbdefb
+    style L3 fill:#ffcdd2
+    style L4 fill:#fff3e0
 ```
 
 **Setup**:
 
 ```bash
 cd examples/
-gcc -Wall -pthread -o producer_consumer  producer_consumer.c
-gcc -Wall -pthread -o bounded_buffer     bounded_buffer.c
+gcc -Wall -pthread -o lab1_thread_pool   lab1_thread_pool.c
+gcc -Wall -fopenmp -o lab2_openmp_parallel lab2_openmp_parallel.c
+gcc -Wall -pthread -o lab3_fork_threads  lab3_fork_threads.c
+gcc -Wall -pthread -o lab4_tls           lab4_tls.c
 ```
 
 ---
 
-# Exercise 1: Producer-Consumer
+# Lab 1: Thread Pool
 
-**Goal**: Coordinate producer and consumer with **condition variable** + **mutex**
-
-<div class="grid grid-cols-2 gap-4">
-<div>
-
-```c
-// Producer
-pthread_mutex_lock(&buf->mutex);
-while (buf->count == BUFFER_SIZE)
-    pthread_cond_wait(
-        &buf->not_full,
-        &buf->mutex);
-buf->data[buf->in] = item;
-buf->in = (buf->in + 1) % BUFFER_SIZE;
-buf->count++;
-pthread_cond_signal(&buf->not_empty);
-pthread_mutex_unlock(&buf->mutex);
-```
-
-</div>
-<div>
-
-```mermaid
-graph TD
-    P["Producer"] -->|"put item"| B["Bounded<br/>Buffer"]
-    B -->|"get item"| C["Consumer"]
-    P -->|"full?"| W1["⏳ wait(not_full)"]
-    C -->|"empty?"| W2["⏳ wait(not_empty)"]
-    W1 -.->|"signal"| C
-    W2 -.->|"signal"| P
-    style B fill:#fff3e0
-    style W1 fill:#ffcdd2
-    style W2 fill:#ffcdd2
-```
-
-</div>
-</div>
-
-**Why `while`, not `if`?** — POSIX uses **Mesa semantics**: spurious wakeups are possible. Always recheck.
-
-<div class="text-right text-sm text-gray-400">📁 Skeleton: `examples/skeletons/lab1_producer_consumer.c`</div>
-<div class="text-right text-sm text-gray-400">📁 Solution: `examples/solutions/lab1_producer_consumer.c`</div>
-
----
-
-# Exercise 2: Bounded Buffer at Scale
-
-**3 producers + 3 consumers**, `BUFFER_SIZE = 4`
-
-```bash
-./bounded_buffer   # every item produced is consumed exactly once
-```
-
-**Experiments**:
-
-| Change | Expected Effect |
-|---|---|
-| Replace `while` with `if` | Assertion failures or wrong count |
-| Replace `signal` with `broadcast` | Correct but more spurious wakeups |
-| Set `BUFFER_SIZE = 1` | Strict alternation, low concurrency |
-| Reduce consumers to 1 | Consumer bottleneck, producers wait more |
-
-<div class="text-right text-sm text-gray-400">📁 Skeleton: `examples/skeletons/lab2_bounded_buffer.c`</div>
-<div class="text-right text-sm text-gray-400">📁 Solution: `examples/solutions/lab2_bounded_buffer.c`</div>
+**Goal**: Implement a task queue with pre-created worker threads (Ch 4.5.1)
 
 ```mermaid
 graph LR
-    P1["Producer 1"] --> B["Buffer<br/>(size 4)"]
-    P2["Producer 2"] --> B
-    P3["Producer 3"] --> B
-    B --> C1["Consumer 1"]
-    B --> C2["Consumer 2"]
-    B --> C3["Consumer 3"]
-    style B fill:#fff3e0
+    M["Main Thread<br/>submit tasks"] --> Q["Task Queue"]
+    Q --> W0["Worker 0"]
+    Q --> W1["Worker 1"]
+    Q --> W2["Worker 2"]
+    Q --> W3["Worker 3"]
+    style M fill:#e3f2fd
+    style Q fill:#fff3e0
+    style W0 fill:#c8e6c9
+    style W1 fill:#c8e6c9
+    style W2 fill:#c8e6c9
+    style W3 fill:#c8e6c9
 ```
+
+**Three benefits** of thread pools:
+
+| Benefit | Description |
+|---------|-------------|
+| Faster response | Reuse existing threads — no creation overhead |
+| Bounded concurrency | Limit threads to prevent resource exhaustion |
+| Task/execution separation | Decouple *what* from *how* |
+
+```bash
+./lab1_thread_pool    # 4 workers process 12 tasks
+```
+
+<div class="text-right text-sm text-gray-400 pt-2">
+
+Skeleton: `examples/skeletons/lab1_thread_pool.c` · Solution: `examples/solutions/lab1_thread_pool.c`
+
+</div>
 
 ---
 
-# Exercise 3: xv6 spinlock.c Analysis
-
-**File**: `xv6-riscv/kernel/spinlock.c`
-
-<div class="grid grid-cols-2 gap-4">
-<div>
-
-**`acquire` — four steps:**
+# Lab 1: Thread Pool — Key Code
 
 ```c
-void acquire(struct spinlock *lk) {
-  push_off();        // 1. disable interrupts
-  if (holding(lk))
-      panic("acquire"); // 2. re-entrancy check
-  while (__sync_lock_test_and_set(
-      &lk->locked, 1)) // 3. atomic spin
-      ;
-  __sync_synchronize(); // 4. memory barrier
-  lk->cpu = mycpu();
+void *worker_thread(void *arg) {
+    while (1) {
+        pthread_mutex_lock(&pool.lock);
+        while (pool.count == 0 && !pool.shutdown)
+            pthread_cond_wait(&pool.not_empty, &pool.lock);  // wait for work
+        if (pool.shutdown && pool.count == 0) { unlock; break; }
+        task = dequeue();
+        pthread_cond_signal(&pool.not_full);  // free slot
+        pthread_mutex_unlock(&pool.lock);
+        task.function(task.arg);              // execute outside lock
+    }
 }
 ```
 
-</div>
-<div>
+**Pattern**: Producer (main) submits tasks → Queue → Consumer (workers) execute
 
-**`push_off` / `pop_off`** — nestable interrupt disable:
-
-```mermaid
-graph TD
-    A["acquire(lock_A)<br/>push_off: noff=1<br/>interrupts OFF"] --> B["acquire(lock_B)<br/>push_off: noff=2"]
-    B --> C["release(lock_B)<br/>pop_off: noff=1<br/>still OFF"]
-    C --> D["release(lock_A)<br/>pop_off: noff=0<br/>interrupts ON"]
-    style A fill:#ffcdd2
-    style D fill:#c8e6c9
-```
-
-Prevents self-deadlock: interrupt handler cannot spin on a lock held by the interrupted code.
-
-</div>
-</div>
+- Workers sleep when queue is empty (no busy-wait)
+- Shutdown: set flag + `broadcast` to wake all sleeping workers
+- Compare with Java `ExecutorService.newFixedThreadPool(4)`
 
 ---
 
-# Exercise 4: xv6 kalloc.c Lock Analysis
+# Lab 2: OpenMP Parallel
 
-**File**: `xv6-riscv/kernel/kalloc.c` — one global freelist + one lock
+**Goal**: Use compiler directives for implicit threading (Ch 4.5.3)
 
 <div class="grid grid-cols-2 gap-4">
 <div>
 
-```c
-struct {
-    struct spinlock lock;
-    struct run *freelist;
-} kmem;  // ALL CPUs share this
-```
+**Sequential**:
 
 ```c
-// kfree: memset BEFORE lock
-memset(pa, 1, PGSIZE);
-acquire(&kmem.lock);
-r->next = kmem.freelist;
-kmem.freelist = r;
-release(&kmem.lock);
-
-// kalloc: memset AFTER lock
-acquire(&kmem.lock);
-r = kmem.freelist;
-if(r) kmem.freelist = r->next;
-release(&kmem.lock);
-memset((char*)r, 5, PGSIZE);
+for (int i = 0; i < N; i++)
+    sum += array[i];
 ```
 
 </div>
 <div>
 
-**Scalability problem:**
+**Parallel (OpenMP)**:
 
-```mermaid
-graph TD
-    subgraph "Current: Global Lock"
-        CPU0["CPU 0"] --> GL["🔒 kmem.lock"]
-        CPU1["CPU 1"] --> GL
-        CPU2["CPU 2"] --> GL
-        GL --> FL["freelist"]
-    end
-    style GL fill:#ffcdd2
-```
-
-```mermaid
-graph TD
-    subgraph "Homework: Per-CPU"
-        C0["CPU 0"] --> L0["🔒 lock_0"]
-        C1["CPU 1"] --> L1["🔒 lock_1"]
-        C2["CPU 2"] --> L2["🔒 lock_2"]
-        L0 --> F0["freelist_0"]
-        L1 --> F1["freelist_1"]
-        L2 --> F2["freelist_2"]
-    end
-    style L0 fill:#c8e6c9
-    style L1 fill:#c8e6c9
-    style L2 fill:#c8e6c9
+```c
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < N; i++)
+    sum += array[i];
 ```
 
 </div>
+</div>
+
+**Key directives**:
+
+| Directive | Effect |
+|-----------|--------|
+| `#pragma omp parallel` | Create thread team |
+| `#pragma omp parallel for` | Split loop iterations |
+| `reduction(+:var)` | Private copies, combined at end |
+
+```bash
+./lab2_openmp_parallel
+OMP_NUM_THREADS=2 ./lab2_openmp_parallel   # control thread count
+```
+
+<div class="text-right text-sm text-gray-400 pt-2">
+
+Skeleton: `examples/skeletons/lab2_openmp_parallel.c` · Solution: `examples/solutions/lab2_openmp_parallel.c`
+
+</div>
+
+---
+
+# Lab 3: fork() in Multithreaded Programs
+
+**Goal**: Observe that fork() copies **only the calling thread** (Ch 4.6.1)
+
+```text
+Before fork():                After fork():
+
+Parent Process                Parent Process       Child Process
+┌──────────────┐             ┌──────────────┐     ┌──────────────┐
+│ Main Thread  │             │ Main Thread  │     │ Main Thread  │ (copy)
+│ Thread 1     │    fork()   │ Thread 1     │     │              │ (gone!)
+│ Thread 2     │ ─────────→  │ Thread 2     │     │              │ (gone!)
+│ Thread 3     │             │ Thread 3     │     │              │ (gone!)
+│ counter = 7  │             │ counter = 10 │     │ counter = 7  │ (frozen)
+└──────────────┘             └──────────────┘     └──────────────┘
+```
+
+- Parent: counter keeps incrementing (threads alive)
+- Child: counter stays at 7 (threads NOT copied)
+- **Safe pattern**: `fork()` + `exec()` immediately
+
+<div class="text-right text-sm text-gray-400 pt-2">
+
+Skeleton: `examples/skeletons/lab3_fork_threads.c` · Solution: `examples/solutions/lab3_fork_threads.c`
+
+</div>
+
+---
+
+# Lab 4: Thread-Local Storage (TLS)
+
+**Goal**: Use `__thread` for per-thread private global state (Ch 4.6.4)
+
+<div class="grid grid-cols-2 gap-4">
+<div>
+
+**Shared global**:
+
+```c
+int shared_var = 0;
+
+// All threads: shared_var++
+// Result: RACE CONDITION
+```
+
+</div>
+<div>
+
+**Thread-local**:
+
+```c
+__thread int tls_var = 0;
+
+// Each thread: tls_var++
+// Result: always correct (100000)
+```
+
+</div>
+</div>
+
+**Real-world use**: `errno` is TLS — each thread has its own error code
+
+```bash
+./lab4_tls
+# shared_var = 287453 (expected 400000) RACE CONDITION!
+# Each thread's tls_var was 100000 (always correct)
+```
+
+<div class="text-right text-sm text-gray-400 pt-2">
+
+Skeleton: `examples/skeletons/lab4_tls.c` · Solution: `examples/solutions/lab4_tls.c`
+
 </div>
 
 ---
 
 # Key Takeaways
 
-| Concept | Key Insight |
-|---|---|
-| **Condition variables** | `mutex` + `cond_wait` in a `while` loop — always recheck |
-| **xv6 spinlock** | disable interrupts + atomic spin + memory barrier |
-| **push_off/pop_off** | nestable interrupt disable prevents self-deadlock |
-| **Lock granularity** | global lock = simple but bottleneck; per-CPU = parallel |
-
 ```mermaid
-graph LR
-    CV["Condition<br/>Variables"] --> PC["Producer-<br/>Consumer"]
-    SL["Spinlock"] --> XV["xv6 kernel<br/>locks"]
-    XV --> KA["kalloc.c<br/>global → per-CPU"]
-    style CV fill:#e3f2fd
-    style SL fill:#fff3e0
-    style KA fill:#e8f5e9
+graph TD
+    IT["Implicit Threading<br/>(Ch 4.5)"] --> TP["Thread Pool<br/>pre-created workers"]
+    IT --> OMP["OpenMP<br/>compiler directives"]
+    TI["Threading Issues<br/>(Ch 4.6)"] --> FK["fork() + Threads<br/>only caller copied"]
+    TI --> TLS["TLS<br/>per-thread globals"]
+    style IT fill:#c8e6c9
+    style TI fill:#bbdefb
+    style TP fill:#c8e6c9
+    style OMP fill:#c8e6c9
+    style FK fill:#ffcdd2
+    style TLS fill:#fff3e0
 ```
 
-> **Minimize work inside critical sections** — `kalloc.c` deliberately places `memset` outside the lock.
+| Concept | Key Insight |
+|---------|-------------|
+| Thread Pool | Workers wait on queue — reuse threads, bound concurrency |
+| OpenMP | One pragma line → automatic parallelization |
+| fork() | Only calling thread copied — call exec() right away |
+| TLS | `__thread` = per-thread copy, no locks needed |

@@ -1,317 +1,211 @@
-# Week 5 Lab: Thread & Concurrency 2 - Advanced Synchronization
+# Week 5 Lab: Implicit Threading and Threading Issues
 
-> In-class lab (~50 minutes)
->
-> Textbook reference: xv6 textbook Ch 6.6-6.10 (Advanced Locking), Ch 9 (Concurrency Revisited)
-
----
+> In-class lab (~50 min)
+> Textbook: Silberschatz Ch 4 (Sections 4.5–4.7)
 
 ## Learning Objectives
 
-- Understand thread communication patterns using condition variables
-- Correctly implement the Producer-Consumer problem
-- Analyze the spinlock implementation in the xv6 kernel and explain the role of each function
-- Explain what the lock in xv6's kalloc.c protects and why it is necessary
+Through this lab, you will:
+
+- Implement a simple **thread pool** with a work queue and worker threads
+- Use **OpenMP** directives to parallelize loops and perform reductions
+- Observe what happens when **fork()** is called in a multithreaded program
+- Use **Thread-Local Storage (TLS)** to give each thread private global state
+
+## Prerequisites
+
+```bash
+# Navigate to the lab directory
+cd examples/
+
+# Compile all examples
+gcc -Wall -pthread -o lab1_thread_pool lab1_thread_pool.c
+gcc -Wall -fopenmp -o lab2_openmp_parallel lab2_openmp_parallel.c
+gcc -Wall -pthread -o lab3_fork_threads lab3_fork_threads.c
+gcc -Wall -pthread -o lab4_tls lab4_tls.c
+```
+
+> Note: Lab 2 requires OpenMP support (`-fopenmp`). GCC includes this by default.
 
 ---
 
-## Exercise 1: Implementing the Producer-Consumer Problem (15 min)
+## Lab 1: Thread Pool (~15 min)
 
 ### Background
 
-Producer-Consumer is a classic synchronization problem. With a shared buffer in between:
-- **Producer**: Generates data and places it into the buffer
-- **Consumer**: Retrieves data from the buffer and processes it
+A **thread pool** pre-creates a fixed number of worker threads that wait for tasks in a shared queue. This avoids the overhead of creating and destroying threads for each task.
 
-Key conditions:
-- If the buffer is full, the producer must **wait**
-- If the buffer is empty, the consumer must **wait**
-- **Mutual exclusion** must be guaranteed when accessing the buffer
+The three benefits of thread pools (from the textbook):
+1. **Faster response** — reuse existing threads instead of creating new ones
+2. **Bounded concurrency** — limit the number of threads in the system
+3. **Task/execution separation** — decouple what to do from how to schedule it
 
-### Synchronization Tools Used
+### Architecture
 
-| Tool | Role |
-|------|------|
-| `pthread_mutex_t` | Mutual exclusion for shared data (buffer) |
-| `pthread_cond_t not_full` | Notifies that space is available in the buffer |
-| `pthread_cond_t not_empty` | Notifies that data has been placed in the buffer |
+```
+Main Thread                     Worker Threads
+    |                          [Worker 0] ─┐
+    |── submit(task1) ──→ [Queue] ──→ [Worker 1] ──→ execute task
+    |── submit(task2) ──→ [Queue] ──→ [Worker 2] ──→ execute task
+    |── submit(task3) ──→ [Queue] ──→ [Worker 3] ─┘
+    |
+    |── shutdown() ──→ wake all → workers exit
+```
 
-### Lab Walkthrough
-
-1. Compile and run the example code:
+### Execution
 
 ```bash
-cd examples/
-gcc -Wall -pthread -o lab1_producer_consumer lab1_producer_consumer.c
-./lab1_producer_consumer
+./lab1_thread_pool
 ```
 
-2. Open `lab1_producer_consumer.c` and focus on the following sections:
+### Checklist
 
-#### (a) `buffer_put` Function - Producer Operation
+- [ ] Do 4 workers process 12 tasks (3 tasks per worker on average)?
+- [ ] Can you identify the producer-consumer pattern in the code?
+- [ ] Does graceful shutdown wait for all tasks to finish?
 
-```c
-void buffer_put(bounded_buffer_t *buf, int item) {
-    pthread_mutex_lock(&buf->mutex);
+### Questions
 
-    // Why while instead of if?
-    while (buf->count == BUFFER_SIZE) {
-        pthread_cond_wait(&buf->not_full, &buf->mutex);
-    }
-
-    buf->data[buf->in] = item;
-    buf->in = (buf->in + 1) % BUFFER_SIZE;
-    buf->count++;
-
-    pthread_cond_signal(&buf->not_empty);
-    pthread_mutex_unlock(&buf->mutex);
-}
-```
-
-#### (b) `buffer_get` Function - Consumer Operation
-
-```c
-int buffer_get(bounded_buffer_t *buf) {
-    int item;
-    pthread_mutex_lock(&buf->mutex);
-
-    while (buf->count == 0) {
-        pthread_cond_wait(&buf->not_empty, &buf->mutex);
-    }
-
-    item = buf->data[buf->out];
-    buf->out = (buf->out + 1) % BUFFER_SIZE;
-    buf->count--;
-
-    pthread_cond_signal(&buf->not_full);
-    pthread_mutex_unlock(&buf->mutex);
-    return item;
-}
-```
-
-### Points to Consider
-
-- Why is `while` used instead of `if` when checking the condition in `pthread_cond_wait`?
-  - Hint: **spurious wakeup**, Mesa semantics
-- What happens to the mutex when `pthread_cond_wait` is called?
-  - Hint: atomically unlock + sleep, automatically relock upon wakeup
-- What is the difference between `signal` and `broadcast`?
+1. What happens if you submit tasks faster than workers can process them?
+2. Why do workers use `while (count == 0)` instead of `if (count == 0)` before `cond_wait`?
+3. How is this similar to Java's `ExecutorService.newFixedThreadPool()`?
 
 ---
 
-## Exercise 2: Multi-Producer/Consumer Bounded Buffer (10 min)
+## Lab 2: OpenMP Parallel For & Reduction (~12 min)
 
-### Lab Walkthrough
+### Background
 
-1. Compile and run:
+**OpenMP** is a set of compiler directives for implicit threading. Instead of manually creating threads, you add `#pragma` annotations and the compiler handles the rest.
+
+Key directives:
+| Directive | Effect |
+|-----------|--------|
+| `#pragma omp parallel` | Create a team of threads |
+| `#pragma omp parallel for` | Split loop iterations across threads |
+| `reduction(+:var)` | Each thread gets a private copy, combined at end |
+
+### Execution
 
 ```bash
-gcc -Wall -pthread -o lab2_bounded_buffer lab2_bounded_buffer.c
-./lab2_bounded_buffer
+./lab2_openmp_parallel
+
+# Try different thread counts
+OMP_NUM_THREADS=1 ./lab2_openmp_parallel
+OMP_NUM_THREADS=2 ./lab2_openmp_parallel
+OMP_NUM_THREADS=8 ./lab2_openmp_parallel
 ```
 
-2. `lab2_bounded_buffer.c` has **3 Producers + 3 Consumers** operating concurrently. Observe the following:
+### Checklist
 
-- Since the buffer size is only 4, waiting occurs frequently
-- Verify that all items are produced/consumed exactly once
+- [ ] Did Demo 1 show multiple threads printing their IDs?
+- [ ] Is the parallel for loop faster than sequential?
+- [ ] Does the reduction produce the correct sum (50000000)?
 
-3. **Experiment**: Modify the code and try the following:
+### Questions
 
-| Change | Expected Result |
-|------|-----------|
-| Replace `while` with `if` | Possible race condition (assert failure) |
-| Replace `signal` with `broadcast` | Works correctly, but unnecessary wakeups increase |
-| Change `BUFFER_SIZE` to 1 | Alternating execution, reduced concurrency |
-| Reduce number of Consumers to 1 | Consumption bottleneck, increased producer waiting |
+1. What would happen if you used `sum += array[i]` without the `reduction` clause?
+2. How does OpenMP decide how many iterations each thread gets?
+3. Compare OpenMP with manual Pthreads — what are the trade-offs?
 
 ---
 
-## Exercise 3: xv6 kernel/spinlock.c Code Analysis (15 min)
+## Lab 3: fork() in Multithreaded Programs (~13 min)
 
-> File location: `xv6-riscv/kernel/spinlock.c`
+### Background
 
-Let's read through xv6's spinlock implementation together and analyze the role of each function.
+When a multithreaded process calls `fork()`, POSIX specifies that **only the calling thread** is duplicated in the child process. All other threads disappear.
 
-### 3-1. `acquire` Function
+This creates two problems:
+1. **Lost threads** — background work stops in the child
+2. **Orphaned locks** — if a disappeared thread held a mutex, the child may deadlock
 
-```c
-void acquire(struct spinlock *lk)
-{
-    push_off();   // (1) Disable interrupts
-    if(holding(lk))
-        panic("acquire");
+The safe pattern: call `exec()` immediately after `fork()`, replacing the entire address space.
 
-    // (2) Attempt to acquire lock via atomic swap
-    while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
-        ;
+### Execution
 
-    // (3) Memory fence
-    __sync_synchronize();
-
-    // (4) Record debugging information
-    lk->cpu = mycpu();
-}
+```bash
+./lab3_fork_threads
 ```
 
-#### Analysis Points
+### Expected Behavior
 
-| Step | Code | Question |
-|------|------|------|
-| (1) | `push_off()` | Why must interrupts be disabled before acquiring the lock? |
-| (2) | `__sync_lock_test_and_set` | How does this atomic operation differ from test-and-set? |
-| (3) | `__sync_synchronize` | What problems can arise without a memory fence? |
-| (4) | `lk->cpu = mycpu()` | Where is this information used? |
+```
+[Parent] Thread 0 started
+[Parent] Thread 1 started
+[Parent] Thread 2 started
+[Parent] counter = 7 (3 threads running)
 
-**Why interrupts must be disabled (textbook Ch 6.6)**:
-- An interrupt occurs while the CPU holds the lock
-- The interrupt handler attempts to acquire the same lock
-- It spins forever waiting for a lock held by itself -> **deadlock**
-
-### 3-2. `release` Function
-
-```c
-void release(struct spinlock *lk)
-{
-    if(!holding(lk))
-        panic("release");
-
-    lk->cpu = 0;
-
-    __sync_synchronize();              // (1) Memory fence
-    __sync_lock_release(&lk->locked);  // (2) Atomic: locked = 0
-
-    pop_off();                         // (3) Restore interrupts
-}
+[Child] counter = 7
+[Child] counter after 500ms = 7      ← did NOT change!
+[Parent] counter = 10 (still incrementing)
 ```
 
-**Question**: Why must `__sync_synchronize()` come **before** `__sync_lock_release`?
-- Hint: Stores inside the critical section must not be reordered past the lock release
+In the child, `counter` stays at 7 because the background threads were not copied.
 
-### 3-3. `push_off` / `pop_off`
+### Checklist
 
-```c
-void push_off(void) {
-    int old = intr_get();
-    intr_off();
-    if(mycpu()->noff == 0)
-        mycpu()->intena = old;    // Save previous state on first push
-    mycpu()->noff += 1;           // Increment nesting count
-}
+- [ ] Did the child's counter remain unchanged?
+- [ ] Did the parent's counter continue incrementing?
+- [ ] Did the fork+exec demo work correctly?
 
-void pop_off(void) {
-    struct cpu *c = mycpu();
-    if(intr_get())
-        panic("pop_off - interruptible");
-    if(c->noff < 1)
-        panic("pop_off");
-    c->noff -= 1;
-    if(c->noff == 0 && c->intena)
-        intr_on();                // Restore only after all locks released
-}
-```
+### Questions
 
-**Key Concept: Nestable Interrupt Disabling**
-
-- When locks are acquired in a nested manner (multiple `push_off` calls), interrupts must not be re-enabled immediately
-- Tracked using the `noff` counter so interrupts are only restored when the last lock is released
-- `intena` remembers the interrupt state at the time of the first `push_off` call
-
-**Question**: If lock A is acquired and then lock B is acquired, what is the value of `noff`? Are interrupts re-enabled when lock B is released?
+1. Why does POSIX fork() only copy the calling thread?
+2. What could go wrong if a disappeared thread held a mutex?
+3. When is it safe to NOT call exec() after fork()?
 
 ---
 
-## Exercise 4: Analyzing the Role of Locks in xv6 kernel/kalloc.c (10 min)
+## Lab 4: Thread-Local Storage (TLS) (~10 min)
 
-> File location: `xv6-riscv/kernel/kalloc.c`
+### Background
 
-### Structure Analysis
+**Thread-Local Storage** gives each thread its own private copy of a global variable. Without TLS, global variables are shared and require locks. With TLS, each thread has an independent copy — no synchronization needed.
 
-```c
-struct run {
-    struct run *next;
-};
+| Approach | Declaration | Shared? |
+|----------|------------|---------|
+| Global | `int var;` | Yes — all threads see the same value |
+| Thread-local | `__thread int var;` | No — each thread has its own copy |
 
-struct {
-    struct spinlock lock;
-    struct run *freelist;
-} kmem;
+Real-world use: `errno` is implemented as TLS so each thread gets its own error code.
+
+### Execution
+
+```bash
+./lab4_tls
 ```
 
-- `kmem` is a global variable with only **one instance** in the entire system
-- `freelist` is a linked list of available physical memory pages
-- `lock` protects this linked list
+### Expected Behavior
 
-### kfree Analysis
-
-```c
-void kfree(void *pa) {
-    struct run *r;
-
-    if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
-        panic("kfree");
-
-    memset(pa, 1, PGSIZE);       // Fill with junk to detect dangling references
-
-    r = (struct run*)pa;
-
-    acquire(&kmem.lock);          // --- critical section start ---
-    r->next = kmem.freelist;      // Insert at head of list
-    kmem.freelist = r;
-    release(&kmem.lock);          // --- critical section end ---
-}
+```
+--- Demo 1: Shared Global vs Thread-Local ---
+[Thread 0] tls_var = 100000 (expected 100000)    ← always correct
+[Thread 1] tls_var = 100000 (expected 100000)
+...
+shared_var = 287453 (expected 400000) RACE CONDITION!
+Each thread's tls_var was 100000 (always correct)
 ```
 
-### kalloc Analysis
+### Checklist
 
-```c
-void *kalloc(void) {
-    struct run *r;
+- [ ] Is `shared_var` less than expected? (race condition)
+- [ ] Is each thread's `tls_var` exactly 100000?
+- [ ] In Demo 2, does each thread maintain its own error code?
 
-    acquire(&kmem.lock);          // --- critical section start ---
-    r = kmem.freelist;
-    if(r)
-        kmem.freelist = r->next;  // Remove from head of list
-    release(&kmem.lock);          // --- critical section end ---
+### Questions
 
-    if(r)
-        memset((char*)r, 5, PGSIZE);
-    return (void*)r;
-}
-```
-
-### Points to Consider
-
-1. **What would happen without the lock?**
-   - What if two CPUs call `kalloc` simultaneously?
-   - The same page could be allocated twice (double allocation)
-
-2. **Performance issue**:
-   - All CPUs share **a single lock**
-   - As the number of CPUs increases, **contention** occurs during `kalloc`/`kfree` calls
-   - This is the motivation for this week's assignment: improve with **per-CPU free lists**!
-
-3. **Placement of memset**:
-   - In `kfree`, `memset(pa, 1, PGSIZE)` -- executed outside the lock (not yet on the freelist)
-   - In `kalloc`, `memset((char*)r, 5, PGSIZE)` -- executed outside the lock (already removed from the freelist)
-   - Performance is improved by minimizing the scope of the lock
+1. Why doesn't `__thread` need a mutex?
+2. How is `__thread` different from a local variable on the stack?
+3. What are the limitations of TLS? (Hint: dynamic allocation, thread creation)
 
 ---
 
-## Summary
+## Summary and Key Takeaways
 
-| Topic | Key Points |
-|------|-----------|
-| Condition Variable | Synchronize conditions between threads using `while` loop + `wait`/`signal` pattern |
-| Bounded Buffer | mutex + 2 cond vars (`not_full`, `not_empty`) |
-| xv6 spinlock | atomic swap + memory fence + interrupt disable |
-| push_off/pop_off | Nestable interrupt management (`noff` counter) |
-| kalloc lock | A single lock protects the free list; can be improved with per-CPU approach |
-
----
-
-## References
-
-- xv6 textbook Chapter 6: Locking (especially 6.6-6.10)
-- xv6 textbook Chapter 9: Concurrency Revisited
-- OSTEP Chapter 30: Condition Variables
-- `man pthread_cond_wait`, `man pthread_mutex_lock`
+| Concept | Description | Theory Reference |
+|---------|-------------|-----------------|
+| Thread Pool | Pre-created workers + task queue | Ch 4.5.1 — Thread Pools |
+| OpenMP | Compiler directives for implicit threading | Ch 4.5.3 — OpenMP |
+| fork() with threads | Only calling thread is copied | Ch 4.6.1 — fork/exec Semantics |
+| Thread-Local Storage | Per-thread private global variables | Ch 4.6.4 — TLS |
