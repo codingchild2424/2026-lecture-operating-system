@@ -26,6 +26,9 @@ npm-debug.log*
 __pycache__/
 *.pyc
 
+# Archives
+*.zip
+
 # OS files
 .DS_Store
 Thumbs.db

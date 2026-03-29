@@ -1,230 +1,400 @@
-# Week 6 Assignment: User-Level Thread Library (uthread)
+# Week 6 Assignment: xv6 Priority Scheduler
 
-> Deadline: Before the next class starts
-> Difficulty: ★★★☆☆
-> Type: Required assignment
+> **Deadline**: Before the next class
+> **Based on**: Week 6 Theory (CPU Scheduling) + Lab (Context Switching in xv6)
+> **Difficulty**: ★★★☆☆
+> **Environment**: xv6-riscv (QEMU + RISC-V toolchain required — see [Week 2 setup guide](../../week02/2_lab/setup_xv6_env.md))
+
+---
 
 ## Overview
 
-In this assignment, you will implement a **user-level thread library**. Just as xv6 kernel's `swtch`/`scheduler` switches processes at the kernel level, you will implement cooperative thread switching in user space.
+In this assignment, you will modify xv6's scheduler to implement **priority-based scheduling**.
 
-Inspired by MIT 6.S081's "Multithreading" Lab, you will create a thread library that runs in a **macOS/Linux** environment, not in xv6.
+Currently, xv6 uses a simple **round-robin** scheduler that scans the `proc[]` array linearly and runs the first RUNNABLE process it finds (as you observed in Lab Exercise 2–3). You will change this so the scheduler always picks the **highest-priority** RUNNABLE process.
 
-## Learning Objectives
+You will also add two system calls — `setpriority` and `getpriority` — so that user programs can change and query process priorities at runtime.
 
-- Understand the core principles of context switching by implementing it yourself.
-- Learn context management using the `ucontext` API (`getcontext`, `makecontext`, `swapcontext`, `setcontext`).
-- Express process/thread state transitions in code.
-- Implement round-robin scheduling yourself.
+---
 
-## Background Knowledge
+## Background
 
-### What is Context Switching?
+### From Theory: Scheduling Algorithms
 
-It is the process where the CPU saves the **register state** (PC, SP, general-purpose registers, etc.) of the currently running thread and restores the saved state of the next thread to be executed. In xv6, `swtch.S` performs this role, and in this assignment, the POSIX `ucontext` API serves the same purpose.
+In this week's lecture, we learned several scheduling algorithms:
 
-### ucontext API
+- **FCFS**: Select the process that arrived first — simple but suffers from the **convoy effect**
+- **SJF**: Select the process with the shortest next CPU burst — optimal for average waiting time, but requires knowing burst length in advance
+- **RR**: Give each process a fixed time quantum in circular order — fair but higher turnaround time
 
-```c
-#include <ucontext.h>
+**SJF is actually a special case of priority scheduling** where the priority is the inverse of the predicted CPU burst. The general idea is: assign each process a numeric **priority**, and the scheduler always runs the highest-priority RUNNABLE process.
 
-int  getcontext(ucontext_t *ucp);         // Save current context
-void makecontext(ucontext_t *ucp,         // Set the starting function for a context
-                 void (*func)(), int argc, ...);
-int  swapcontext(ucontext_t *oucp,        // Save current context + switch to new context
-                 const ucontext_t *ucp);
-int  setcontext(const ucontext_t *ucp);   // Switch to new context (without saving)
-```
+### From Lab: xv6 Scheduler Internals
 
-**Key Function Descriptions:**
+In the lab, you analyzed xv6's scheduler:
 
-| Function | Role | xv6 Equivalent |
-|------|------|----------|
-| `getcontext` | Save the current execution state to `ucontext_t` | The `sd` (save) part of `swtch` |
-| `makecontext` | Set the entry point (function) and stack for a context | Setting `context.ra = forkret` in `allocproc` |
-| `swapcontext` | Save current state + switch to another context | `swtch(old, new)` |
-| `setcontext` | Switch to another context (without saving) | Jump to scheduler after process exit |
+- **Exercise 1**: `swtch.S` saves/restores callee-saved registers to switch between contexts
+- **Exercise 2**: `scheduler()` in `kernel/proc.c` linearly scans `proc[]` for RUNNABLE processes
+- **Exercise 3**: With multiple `spin` processes, you observed round-robin interleaving
 
-### Thread State Transitions
-
-```
-            thread_create
-  T_FREE ─────────────────> T_RUNNABLE
-                              │    ▲
-                   scheduler  │    │  thread_yield
-                   dispatch   │    │
-                              ▼    │
-                            T_RUNNING
-                              │
-                   thread_exit│
-                              ▼
-                            T_EXITED
-```
-
-## File Structure
-
-```
-3_assignment/
-├── README.md           ← This file
-├── skeleton/
-│   ├── uthread.h       ← Thread struct, constant definitions (no modification needed)
-│   ├── uthread.c       ← Implement the TODO sections
-│   └── main.c          ← Test program (no modification needed)
-├── solution/
-│   └── uthread_solution.c  ← Solution (available after assignment submission)
-└── tests/
-    └── test_uthread.sh ← Automated grading script
-```
-
-## Implementation Requirements
-
-Implement the `TODO` sections in `skeleton/uthread.c`. There are 4 functions to implement:
-
-### 1. `thread_create()` -- Context Initialization
+The key code you traced:
 
 ```c
-int thread_create(void (*func)(void *), void *arg)
+// Current scheduler — simple round-robin
+for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state == RUNNABLE) {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+        c->proc = 0;
+    }
+    release(&p->lock);
+}
 ```
 
-Creates a new thread. Internally:
-- Find an empty slot and set the state to `T_RUNNABLE` (already implemented)
-- **TODO**: Initialize context with `getcontext`
-- **TODO**: Set the thread's dedicated stack (`t->stack`, size `STACK_SIZE`) in the context
-- **TODO**: Set `uc_link` to `_sched_context` (scheduler context)
-- **TODO**: Use `makecontext` to set the starting function to `_thread_wrapper(i)`
+Your task is to replace this with priority-based selection.
 
-**Hint**: Similar to how xv6's `allocproc()` sets `context.ra = forkret` and `context.sp = kstack + PGSIZE`.
+---
 
-### 2. `thread_yield()` -- Yield CPU
+## Functional Specification
+
+### Priority Rules
+
+| Property | Value |
+|----------|-------|
+| Range | 0 (highest) to 20 (lowest) |
+| Default | 10 |
+| Tie-breaking | Round-robin among same-priority processes |
+
+### System Calls
+
+#### `setpriority(int pid, int priority)`
+
+Sets the priority of process `pid` to `priority`.
+
+- Returns `0` on success
+- Returns `-1` if `pid` not found or `priority` is out of range (0–20)
+- A process can set its own priority or its children's priority
+
+#### `getpriority(int pid)`
+
+Returns the priority of process `pid`.
+
+- Returns the priority value (0–20) on success
+- Returns `-1` if `pid` not found
+
+### Scheduler Behavior
+
+Instead of running the first RUNNABLE process found, the scheduler must:
+
+1. Scan **all** RUNNABLE processes
+2. Select the one with the **lowest priority number** (= highest priority)
+3. If multiple processes share the same priority, use **round-robin** among them
+
+---
+
+## Step-by-Step Implementation Guide
+
+### List of Files to Modify
+
+| File | Modification |
+|------|-------------|
+| `kernel/proc.h` | Add `priority` field to `struct proc` |
+| `kernel/proc.c` | Initialize priority in `allocproc()`, reset in `freeproc()`, copy in `kfork()`, modify `scheduler()` |
+| `kernel/syscall.h` | Add `SYS_setpriority` (22) and `SYS_getpriority` (23) |
+| `kernel/sysproc.c` | Implement `sys_setpriority()` and `sys_getpriority()` |
+| `kernel/syscall.c` | Add to syscalls table |
+| `user/usys.pl` | Add entries for both syscalls |
+| `user/user.h` | Add function declarations |
+| `Makefile` | Add test program to UPROGS |
+
+### Step 1: Add Priority Field to `struct proc`
+
+In `kernel/proc.h`, add a `priority` field:
 
 ```c
-void thread_yield(void)
+struct proc {
+  // ... existing fields ...
+  char name[16];               // Process name (debugging)
+  int priority;                // Scheduling priority (0=highest, 20=lowest)
+};
 ```
 
-The current thread voluntarily yields the CPU:
-- **TODO**: Change state to `T_RUNNABLE`
-- **TODO**: Use `swapcontext` to save the current state and switch to the scheduler
+### Step 2: Initialize, Reset, and Inherit Priority
 
-**Hint**: This is the same pattern as xv6's `yield()` which changes `state = RUNNABLE` and calls `sched()` -> `swtch()`.
-
-### 3. `thread_schedule()` -- Round-Robin Scheduler
+**(a)** In `allocproc()` in `kernel/proc.c`, set the default priority:
 
 ```c
-void thread_schedule(void)
+// After other initialization (e.g., setting pid)
+// TODO: Set default priority to 10
 ```
 
-Selects the next thread to run and switches to it:
-- **TODO**: Starting from `(current_thread + 1)`, cycle through to find a `T_RUNNABLE` thread
-- **TODO**: If found, change to `T_RUNNING` and switch with `swapcontext`
-- **TODO**: When a thread returns after yield/exit, find the next thread again
-- **TODO**: If no runnable threads exist, exit the loop and return
-
-**Hint**: The logic is almost identical to xv6's `scheduler()` function. Use the `threads[]` array instead of the `proc[]` array, and `swapcontext()` instead of `swtch()`.
-
-### 4. `thread_exit()` -- Thread Termination
+**(b)** In `freeproc()` in `kernel/proc.c`, reset priority:
 
 ```c
-void thread_exit(void)
+// TODO: Reset priority to 0
 ```
 
-Terminates the current thread and returns to the scheduler:
-- Change state to `T_EXITED` (already implemented)
-- **TODO**: Use `setcontext` to jump to the scheduler context (no need to save current state)
+**(c)** In `kfork()` in `kernel/proc.c`, copy priority from parent to child:
 
-**Hint**: Similar to how xv6's `exit()` changes the state to `ZOMBIE` and calls `sched()`.
+```c
+// After: safestrcpy(np->name, p->name, sizeof(p->name));
+// TODO: Copy parent's priority to child
+```
 
-## Build and Run
+### Step 3: Register the System Call Numbers
+
+Add to `kernel/syscall.h`:
+
+```c
+#define SYS_setpriority 22
+#define SYS_getpriority 23
+```
+
+### Step 4: User Space Interface
+
+Add entries to `user/usys.pl`:
+
+```perl
+entry("setpriority");
+entry("getpriority");
+```
+
+Add declarations to `user/user.h`:
+
+```c
+int setpriority(int, int);
+int getpriority(int);
+```
+
+### Step 5: Implement the System Calls
+
+In `kernel/sysproc.c`, implement both functions:
+
+#### `sys_setpriority()`
+
+```c
+uint64
+sys_setpriority(void)
+{
+  // TODO:
+  // 1. Read arguments: pid (argint 0), priority (argint 1)
+  // 2. Validate priority is in range [0, 20]
+  // 3. Find the process with the given pid in proc[]
+  // 4. Set its priority field
+  // 5. Return 0 on success, -1 on failure
+}
+```
+
+**Hint**: You need to iterate the `proc[]` array (declared `extern` in `defs.h`) to find the process. Remember to `acquire(&p->lock)` before accessing and `release(&p->lock)` afterward.
+
+#### `sys_getpriority()`
+
+```c
+uint64
+sys_getpriority(void)
+{
+  // TODO:
+  // 1. Read argument: pid (argint 0)
+  // 2. Find the process with the given pid in proc[]
+  // 3. Return its priority, or -1 if not found
+}
+```
+
+### Step 6: Update the Syscall Dispatch Table
+
+In `kernel/syscall.c`:
+
+**(a)** Add function prototypes:
+
+```c
+extern uint64 sys_setpriority(void);
+extern uint64 sys_getpriority(void);
+```
+
+**(b)** Add entries to the `syscalls[]` array:
+
+```c
+[SYS_setpriority] sys_setpriority,
+[SYS_getpriority] sys_getpriority,
+```
+
+### Step 7: Modify the Scheduler (Core Task)
+
+This is the main part of the assignment. Modify `scheduler()` in `kernel/proc.c`.
+
+**Current behavior** (round-robin): Runs the first RUNNABLE process found.
+
+**New behavior** (priority): Scans all processes, selects the one with the lowest priority number.
+
+```c
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+
+  c->proc = 0;
+  for(;;){
+    intr_on();
+    intr_off();
+
+    // TODO: Replace the existing round-robin loop with priority-based selection
+    //
+    // Algorithm:
+    //   1. Scan all proc[] entries to find the RUNNABLE process
+    //      with the lowest priority number (highest priority).
+    //   2. If found, set its state to RUNNING and swtch to it.
+    //   3. If no RUNNABLE process exists, execute wfi.
+    //
+    // Important:
+    //   - You must acquire p->lock before checking p->state
+    //     and release it after you're done with p.
+    //   - For tie-breaking (same priority), round-robin is acceptable
+    //     (the linear scan naturally provides this).
+    //
+    // Hint: Use two passes:
+    //   Pass 1: Find the minimum priority value among all RUNNABLE processes
+    //   Pass 2: Run the first RUNNABLE process with that priority value
+    //
+    //   OR: Single pass — track the "best so far" candidate.
+
+    /* ====== YOUR CODE HERE ====== */
+
+
+    /* ====== END YOUR CODE ====== */
+  }
+}
+```
+
+**Hint for locking**: The single-pass approach is simpler. Keep a pointer to the best candidate found so far. When you find a better one, release the old lock and acquire the new one:
+
+```
+best = NULL
+for each p in proc[]:
+    acquire(&p->lock)
+    if p is RUNNABLE and (best == NULL or p->priority < best->priority):
+        if best != NULL: release(&best->lock)
+        best = p
+    else:
+        release(&p->lock)
+
+if best != NULL:
+    // dispatch best (it's already locked)
+    best->state = RUNNING
+    c->proc = best
+    swtch(...)
+    c->proc = 0
+    release(&best->lock)
+```
+
+---
+
+## Testing
+
+### Test Program
+
+Copy `priority_test.c` to `xv6-riscv/user/` and add `$U/_priority_test\` to `UPROGS` in the `Makefile`.
 
 ```bash
-cd skeleton/
-gcc -Wall -o uthread uthread.c main.c
-./uthread
+make clean && make qemu
+
+# In xv6 shell:
+$ priority_test
 ```
 
-## Expected Output
-
-When correctly implemented, 3 threads will execute in an **interleaved** manner:
+### Expected Output
 
 ```
-=== User-Level Thread Test ===
+=== Priority Scheduler Test ===
 
-Created threads: 1, 2, 3
+--- Test 1: setpriority/getpriority ---
+PID 4: default priority = 10
+PID 4: after setpriority(4, 5), priority = 5
+setpriority with invalid priority (-1): returned -1 (OK)
+setpriority with invalid priority (21): returned -1 (OK)
+Test 1 PASSED
 
-[Alpha] iteration 0
-[Beta] count = 0
-[Gamma] step 1 of 5
-[Alpha] iteration 1
-[Beta] count = 10
-[Gamma] step 2 of 5
-[Alpha] iteration 2
-[Beta] count = 20
-[Gamma] step 3 of 5
-[Alpha] iteration 3
-[Beta] count = 30
-[Gamma] step 4 of 5
-[Alpha] iteration 4
-[Beta] count = 40
-[Gamma] step 5 of 5
-[Alpha] done
-[uthread] thread 1 (thread_1) exited
-[Beta] done
-[uthread] thread 2 (thread_2) exited
-[Gamma] done
-[uthread] thread 3 (thread_3) exited
+--- Test 2: Priority inheritance via fork ---
+Parent priority = 3
+Child priority = 3
+Test 2 PASSED
 
-=== All threads finished ===
+--- Test 3: High-priority process runs first ---
+[HIGH prio=1] finished
+[MED  prio=10] finished
+[LOW  prio=19] finished
+Test 3 PASSED
+
+All tests passed!
 ```
 
-Key point: Alpha, Beta, and Gamma should output **alternately in order**. If Alpha outputs 5 times in a row before Beta outputs, there is an issue with `thread_yield` or `thread_schedule` implementation.
+**Key observation** for Test 3: The high-priority process (priority 1) should complete all its work before the medium-priority process (priority 10), which completes before the low-priority process (priority 19). This is different from the round-robin behavior you observed in the lab, where all processes would interleave equally.
 
-## Automated Testing
+---
 
+## Submission Method
+
+Submit using one of the following:
+
+**Method 1: patch file** (recommended)
 ```bash
-cd tests/
-./test_uthread.sh ../skeleton
+cd xv6-riscv
+git diff > priority.patch
 ```
 
-Test items:
-1. Compilation success (`-Wall -Werror`)
-2. Program terminates normally (check for infinite loop/segfault)
-3. All 3 threads produce output
-4. All 3 threads complete
-5. Interleaved execution
-6. Thread exit messages are printed
+**Method 2: Modified files**
+
+Submit the following files:
+- `kernel/proc.h`
+- `kernel/proc.c`
+- `kernel/syscall.h`
+- `kernel/syscall.c`
+- `kernel/sysproc.c`
+- `user/usys.pl`
+- `user/user.h`
+
+---
 
 ## Grading Criteria
 
 | Item | Weight |
-|------|------|
-| `thread_create` implementation (context initialization) | 25% |
-| `thread_yield` implementation (context save + scheduler switch) | 20% |
-| `thread_schedule` implementation (round-robin + swapcontext) | 35% |
-| `thread_exit` implementation (return to scheduler via setcontext) | 10% |
+|------|--------|
+| `priority` field added and properly initialized/reset/inherited | 15% |
+| `setpriority` syscall works correctly (including validation) | 15% |
+| `getpriority` syscall works correctly | 10% |
+| `scheduler()` selects highest-priority process | 40% |
+| Test program passes all tests | 10% |
 | Code style and comments | 10% |
 
-## Correspondence with xv6
+---
 
-The structure of this assignment corresponds 1:1 with the xv6 kernel scheduler:
+## Correspondence with Theory and Lab
 
-| uthread (this assignment) | xv6 | Role |
+| Assignment Task | Theory Concept | Lab Exercise |
 |---|---|---|
-| `thread_create` | `allocproc` | Create new thread/process, initialize context |
-| `thread_yield` | `yield` | Voluntary CPU yield |
-| `thread_schedule` | `scheduler` | Select next execution target and switch |
-| `thread_exit` | `exit` | Thread/process termination |
-| `swapcontext` | `swtch` | Context save + restore |
-| `struct thread` | `struct proc` | Thread/process state management |
-| `threads[]` | `proc[]` | Global thread/process table |
+| Modify `scheduler()` | Scheduling algorithms (beyond RR) | Ex 2: Traced `scheduler()`, Ex 3: Observed RR |
+| Add `priority` to `struct proc` | Process attributes for scheduling decisions | Ex 1: Analyzed `struct context`, Ex 3: Studied `struct proc` |
+| `setpriority`/`getpriority` syscalls | — (syscall mechanism from Week 3) | Week 3 Lab: Syscall path tracing |
+| Observe scheduling order | Scheduling criteria (waiting time, response time) | Ex 3: Observed interleaved execution |
+| High-priority starvation | Convoy effect (FCFS), SJF optimality trade-offs | Ex 4: sleep/wakeup state transitions |
 
-## Important Notes
+---
 
-- `uthread.h` must be included **before** other headers (due to `_XOPEN_SOURCE` definition).
-- On macOS, ucontext will show deprecation warnings, but these are automatically suppressed in the header.
-- Arguments passed to `makecontext` must be of type `int` (pointers cannot be passed).
-- The stack grows downward, but `uc_stack.ss_sp` should be set to the **bottom** (lowest address) of the stack. `makecontext` automatically sets the stack pointer correctly.
+## Questions (include in report)
+
+1. With your priority scheduler, what happens to a low-priority process if high-priority processes keep arriving? How does this relate to the **convoy effect** from FCFS that we studied in theory?
+
+2. Run 3 `spin` processes with priorities 1, 10, and 19 (using `setpriority` in a wrapper). Compare the scheduling behavior with the round-robin behavior you observed in Lab Exercise 3. What is different?
+
+3. SJF is considered optimal for minimizing average waiting time. How would you use priority scheduling to approximate SJF? What information would you need?
+
+---
 
 ## References
 
+- Silberschatz Ch 5 (Sections 5.1–5.3): CPU Scheduling Algorithms
 - xv6 textbook Chapter 7: Scheduling
-- `man getcontext`, `man makecontext`, `man swapcontext`
-- MIT 6.S081 Lab: Multithreading (https://pdos.csail.mit.edu/6.S081/)
+- Week 3 Assignment: Adding system calls to xv6
+- Week 6 Lab: Context switching and scheduler tracing
